@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 IoT Dashboard</title>
+    <!-- Fonts and Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js and MQTT.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Notifications/Alerts Container -->
+    <div id="alerts-container" class="alerts-container"></div>
+
+    <!-- Top Navigation -->
+    <header class="navbar glass">
+        <div class="nav-left">
+            <h1><i class="fa-solid fa-microchip"></i> ESP32 Sensor Dashboard</h1>
+        </div>
+        <div class="nav-right">
+            <div class="status-indicator">
+                <span class="dot disconnected" id="mqtt-dot"></span>
+                <span id="mqtt-status-text">Disconnected</span>
+            </div>
+            <div class="status-indicator">
+                <i class="fa-solid fa-wifi"></i> Online
+            </div>
+            <div class="nav-actions">
+                <button id="theme-toggle" title="Toggle Theme"><i class="fa-solid fa-moon"></i></button>
+                <button id="fullscreen-toggle" title="Fullscreen"><i class="fa-solid fa-expand"></i></button>
+                <button id="refresh-btn" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+                <i class="fa-regular fa-bell" id="notification-bell"></i>
+            </div>
+            <div class="datetime">
+                <div id="current-time">00:00:00</div>
+                <div id="current-date" class="date-text">--</div>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        <!-- Sensor Cards Grid -->
+        <section class="cards-grid">
+            <!-- Temperature Card -->
+            <div class="card glass" id="card-temp">
+                <div class="card-header">
+                    <h3>Temperature</h3>
+                    <i class="fa-solid fa-temperature-half icon-temp"></i>
+                </div>
+                <div class="gauge-container">
+                    <div class="circular-gauge" id="gauge-temp" style="--percentage: 0deg; --gauge-color: var(--primary);">
+                        <div class="gauge-inner">
+                            <span class="value" id="val-temp">--</span><span class="unit">°C</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Humidity Card -->
+            <div class="card glass" id="card-hum">
+                <div class="card-header">
+                    <h3>Humidity</h3>
+                    <i class="fa-solid fa-droplet icon-hum"></i>
+                </div>
+                <div class="gauge-container">
+                    <div class="circular-gauge" id="gauge-hum" style="--percentage: 0deg; --gauge-color: #00d2ff;">
+                        <div class="gauge-inner">
+                            <span class="value" id="val-hum">--</span><span class="unit">%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Distance Card -->
+            <div class="card glass" id="card-dist">
+                <div class="card-header">
+                    <h3>Distance</h3>
+                    <i class="fa-solid fa-satellite-dish icon-dist"></i>
+                </div>
+                <div class="gauge-container">
+                    <div class="circular-gauge" id="gauge-dist" style="--percentage: 0deg; --gauge-color: #a200ff;">
+                        <div class="gauge-inner">
+                            <span class="value" id="val-dist">--</span><span class="unit">cm</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Light Card -->
+            <div class="card glass" id="card-light">
+                <div class="card-header">
+                    <h3>Light Level</h3>
+                    <i class="fa-solid fa-lightbulb icon-light" id="icon-light-anim"></i>
+                </div>
+                <div class="gauge-container">
+                    <div class="circular-gauge" id="gauge-light" style="--percentage: 0deg; --gauge-color: #ffeb3b;">
+                        <div class="gauge-inner">
+                            <span class="value" id="val-light">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="status-text" id="status-light">Interpreting...</div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="section-header">
+                <h2>Live History</h2>
+                <div class="export-actions">
+                    <button id="btn-json" class="btn"><i class="fa-solid fa-download"></i> JSON</button>
+                    <button id="btn-csv" class="btn"><i class="fa-solid fa-file-csv"></i> CSV</button>
+                </div>
+            </div>
+            <div class="charts-grid">
+                <div class="chart-container glass"><canvas id="chart-temp"></canvas></div>
+                <div class="chart-container glass"><canvas id="chart-hum"></canvas></div>
+                <div class="chart-container glass"><canvas id="chart-dist"></canvas></div>
+                <div class="chart-container glass"><canvas id="chart-light"></canvas></div>
+            </div>
+        </section>
+
+        <!-- Device Status Panel -->
+        <section class="status-panel glass">
+            <h2>Device Information</h2>
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="label">Broker Address</span>
+                    <span class="value">ws://172.20.10.4</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Broker Port</span>
+                    <span class="value">1883</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Messages Received</span>
+                    <span class="value" id="msg-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Uptime</span>
+                    <span class="value" id="uptime">00:00:00</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Last Update</span>
+                    <span class="value" id="last-update">--</span>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>
